@@ -10,6 +10,7 @@ use byteorder::{ByteOrder, ReadBytesExt, LE};
 use crate::*;
 
 pub const CELL_ZEG_INI: u8 = 0x08;
+pub const CELL_TRAP: u8 = 0x96;
 pub const CELL_MAX: u8 = 0x96;
 
 #[derive(Clone, Debug)]

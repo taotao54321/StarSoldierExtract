@@ -88,9 +88,30 @@ fn draw_ground(img: &mut RgbaImage, game: &Game, ground: &Ground, idx: usize, se
             let x = 32 + 16 * c as u32;
 
             imageops::overlay(img, img_cell, x, y);
+
+            if visual_id == CELL_TRAP {
+                draw_trap(img, x, y);
+            }
         }
 
         font.draw(img, 2, y, COLOR_TEXT, format!("{:3}", r));
+    }
+}
+
+fn draw_trap(img: &mut RgbaImage, x0: u32, y0: u32) {
+    use imageproc::pixelops::interpolate;
+
+    const H: u32 = 14;
+    const COLOR_U: Rgba<u8> = Rgba([0xA0, 0x20, 0x20, 0xFF]);
+    const COLOR_D: Rgba<u8> = Rgba([0, 0, 0, 0xFF]);
+
+    for y in y0..y0 + H {
+        let ratio = 1.0 - (y - y0) as f32 / H as f32;
+        let color = interpolate(COLOR_U, COLOR_D, ratio);
+
+        for x in x0..x0 + 16 {
+            img.put_pixel(x, y, color);
+        }
     }
 }
 
