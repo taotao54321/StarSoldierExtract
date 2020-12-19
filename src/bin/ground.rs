@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use image::imageops;
 use image::{Rgba, RgbaImage};
-use itertools::iproduct;
 use structopt::StructOpt;
 
 use star_soldier_extract::*;
@@ -76,17 +75,20 @@ fn draw_ground(img: &mut RgbaImage, game: &Game, ground: &Ground, idx: usize, se
 
     let font = Font::new(16.0);
 
-    for (i, c) in iproduct!(0..128, 0..20) {
+    for i in 0..128 {
         let r = (i + 128 * idx) as u8;
-        let visual_id = ground
-            .hidden_visual_id(r, c)
-            .unwrap_or_else(|| ground.cell(r, c));
-        let img_cell = &imgs_cell[visual_id as usize];
-
-        let x = 32 + 16 * c as u32;
         let y = img.height() - 16 * (i as u32 + 1) - y_bias as u32;
 
-        imageops::overlay(img, img_cell, x, y);
+        for c in 0..20 {
+            let visual_id = ground
+                .hidden_visual_id(r, c)
+                .unwrap_or_else(|| ground.cell(r, c));
+            let img_cell = &imgs_cell[visual_id as usize];
+
+            let x = 32 + 16 * c as u32;
+
+            imageops::overlay(img, img_cell, x, y);
+        }
 
         font.draw(img, 2, y, COLOR_TEXT, format!("{:3}", r));
     }
