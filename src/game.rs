@@ -332,6 +332,7 @@ fn load_ground_cells_row<R: Read, W: Write>(mut rdr: R, mut wtr: W) -> eyre::Res
     }
 
     loop {
+        eyre::ensure!(n_written <= 20, "row overflow");
         if n_written == 20 {
             return Ok(n_read);
         }
