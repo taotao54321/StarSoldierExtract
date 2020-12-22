@@ -1,17 +1,18 @@
 use std::convert::TryInto;
 use std::io::{self, Read, Write};
 
+use byteorder::{ByteOrder, ReadBytesExt, LE};
 use image::imageops;
 use image::RgbaImage;
 use itertools::iproduct;
-
-use byteorder::{ByteOrder, ReadBytesExt, LE};
 
 use crate::*;
 
 pub const CELL_ZEG_INI: u8 = 0x08;
 pub const CELL_TRAP: u8 = 0x96;
 pub const CELL_MAX: u8 = 0x96;
+
+pub const META_SPRITE_MAX: u8 = 0x8F;
 
 #[derive(Clone, Debug)]
 pub struct Game {
@@ -21,6 +22,9 @@ pub struct Game {
     ground_palettes: Vec<Palette>,          // [n]
 
     cell_visuals: Vec<CellVisual>, // [n]
+
+    sprite_palette_set: Vec<Palette>,           // [4]
+    meta_sprite_visuals: Vec<MetaSpriteVisual>, // [n]
 
     tiles: Vec<Tile>, // [0x800]
 }
@@ -34,6 +38,9 @@ impl Game {
             ground_palettes: load_ground_palettes(rom),
 
             cell_visuals: load_cell_visuals(rom),
+
+            sprite_palette_set: load_sprite_palette_set(rom),
+            meta_sprite_visuals: load_meta_sprite_visuals(rom),
 
             tiles: load_tiles(rom),
         }
@@ -52,6 +59,18 @@ impl Game {
     pub fn cell_images(&self, second_round: bool, palette_set: &[Palette]) -> Vec<RgbaImage> {
         (0..=CELL_MAX)
             .map(|id| self.cell_image(id, second_round, palette_set))
+            .collect()
+    }
+
+    pub fn meta_sprite_image(&self, id: u8, second_round: bool) -> RgbaImage {
+        let msv = &self.meta_sprite_visuals[id as usize];
+        let tiles = &self.tiles[(if second_round { 0x400 } else { 0 })..];
+        msv.to_image(tiles, &self.sprite_palette_set)
+    }
+
+    pub fn meta_sprite_images(&self, second_round: bool) -> Vec<RgbaImage> {
+        (0..=META_SPRITE_MAX)
+            .map(|id| self.meta_sprite_image(id, second_round))
             .collect()
     }
 }
@@ -198,6 +217,7 @@ impl GroundConfig {
     }
 }
 
+/// (左上, 右上, 左下, 右下) の順。
 #[derive(Clone, Debug)]
 pub struct CellVisual {
     tile_ids: [u8; 4],
@@ -219,6 +239,35 @@ impl CellVisual {
             let x = if i % 2 == 0 { 0 } else { 8 };
             let y = if i / 2 == 0 { 0 } else { 8 };
             imageops::overlay(&mut img, &img_tile, x, y);
+        }
+
+        img
+    }
+}
+
+/// (左上, 左下, 右上, 右下) の順。
+#[derive(Clone, Debug)]
+pub struct MetaSpriteVisual {
+    tile_ids: [u8; 4],
+    attrs: [SpriteAttribute; 4],
+}
+
+impl MetaSpriteVisual {
+    pub fn new(tile_ids: [u8; 4], attrs: [SpriteAttribute; 4]) -> Self {
+        Self { tile_ids, attrs }
+    }
+
+    pub fn to_image(&self, tiles: &[Tile], palette_set: &[Palette]) -> RgbaImage {
+        let mut img = RgbaImage::new(16, 16);
+
+        for i in 0..4 {
+            let tile = &tiles[self.tile_ids[i] as usize];
+            let attr = self.attrs[i];
+
+            let img_part = sprite_image(tile, attr, palette_set);
+            let x = if i / 2 == 0 { 0 } else { 8 };
+            let y = if i % 2 == 0 { 0 } else { 8 };
+            imageops::overlay(&mut img, &img_part, x, y);
         }
 
         img
@@ -367,6 +416,29 @@ fn load_cell_visuals(rom: &Rom) -> Vec<CellVisual> {
                 .unwrap();
             let plt_idx = rom.prg[prg_offset(0xD619 + i)];
             CellVisual::new(tile_ids, plt_idx)
+        })
+        .collect()
+}
+
+fn load_sprite_palette_set(rom: &Rom) -> Vec<Palette> {
+    rom.prg[prg_offset(0xB143)..]
+        .chunks(4)
+        .take(4)
+        .map(Palette::from_bytes)
+        .collect()
+}
+
+fn load_meta_sprite_visuals(rom: &Rom) -> Vec<MetaSpriteVisual> {
+    (0..=META_SPRITE_MAX as u16)
+        .map(|i| {
+            let buf = &rom.prg[prg_offset(0xC344 + 8 * i)..][..8];
+            let mut tile_ids = [0; 4];
+            let mut attrs = [SpriteAttribute::from_byte(0); 4];
+            for j in 0..4 {
+                tile_ids[j] = buf[2 * j];
+                attrs[j] = SpriteAttribute::from_byte(buf[2 * j + 1]);
+            }
+            MetaSpriteVisual::new(tile_ids, attrs)
         })
         .collect()
 }

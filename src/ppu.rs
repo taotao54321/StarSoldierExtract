@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 
+use image::imageops;
 use image::{Rgba, RgbaImage};
 use once_cell::sync::Lazy;
 
@@ -73,4 +74,44 @@ impl Tile {
 
         img
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SpriteAttribute(u8);
+
+impl SpriteAttribute {
+    pub fn from_byte(byte: u8) -> Self {
+        Self(byte)
+    }
+
+    pub fn palette_index(self) -> u8 {
+        self.0 & 3
+    }
+
+    pub fn is_behind(self) -> bool {
+        (self.0 & (1 << 5)) != 0
+    }
+
+    pub fn is_flipped_horizontal(self) -> bool {
+        (self.0 & (1 << 6)) != 0
+    }
+
+    pub fn is_flipped_vertical(self) -> bool {
+        (self.0 & (1 << 7)) != 0
+    }
+}
+
+pub fn sprite_image(tile: &Tile, attr: SpriteAttribute, palette_set: &[Palette]) -> RgbaImage {
+    let plt = palette_set[attr.palette_index() as usize];
+
+    let mut img = tile.to_image(plt);
+
+    if attr.is_flipped_horizontal() {
+        imageops::flip_horizontal_in_place(&mut img);
+    }
+    if attr.is_flipped_vertical() {
+        imageops::flip_vertical_in_place(&mut img);
+    }
+
+    img
 }
