@@ -8,24 +8,24 @@ def go(cmd):
 
 
 def main():
-    go("cargo run --release --bin cell_matrix -- StarSoldier.nes CellMatrix-1.png")
+    go("cargo run --release --bin cell_matrix -- StarSoldier.nes output/CellMatrix-1.png")
     go(
-        "cargo run --release --bin cell_matrix -- --second-round StarSoldier.nes CellMatrix-2.png"
+        "cargo run --release --bin cell_matrix -- --second-round StarSoldier.nes output/CellMatrix-2.png"
     )
 
     go(
-        "cargo run --release --bin meta_sprite_matrix -- StarSoldier.nes MetaSpriteMatrix-1.png"
+        "cargo run --release --bin meta_sprite_matrix -- StarSoldier.nes output/MetaSpriteMatrix-1.png"
     )
     go(
-        "cargo run --release --bin meta_sprite_matrix -- --second-round StarSoldier.nes MetaSpriteMatrix-2.png"
+        "cargo run --release --bin meta_sprite_matrix -- --second-round StarSoldier.nes output/MetaSpriteMatrix-2.png"
     )
 
     for i in range(1, 16 + 1):
         go(
-            f"cargo run --release --bin ground -- StarSoldier.nes {i} Ground-1-{i:02}.png"
+            f"cargo run --release --bin ground -- StarSoldier.nes {i} output/Ground-1-{i:02}.png"
         )
         go(
-            f"cargo run --release --bin ground -- --second-round StarSoldier.nes {i} Ground-2-{i:02}.png"
+            f"cargo run --release --bin ground -- --second-round StarSoldier.nes {i} output/Ground-2-{i:02}.png"
         )
 
 
