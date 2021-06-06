@@ -4,7 +4,6 @@ use std::io::{self, Read, Write};
 use byteorder::{ByteOrder, ReadBytesExt, LE};
 use image::imageops;
 use image::RgbaImage;
-use itertools::iproduct;
 
 use crate::*;
 
@@ -97,7 +96,7 @@ impl Ground {
 
             let r_start = 128 * i;
             let r_end = (128 * (i + 1)).min(240);
-            for (r, c) in iproduct!(r_start..r_end, 0..10) {
+            for (r, c) in itertools::iproduct!(r_start..r_end, 0..10) {
                 cells[r].swap(c, c + 10);
             }
         }
