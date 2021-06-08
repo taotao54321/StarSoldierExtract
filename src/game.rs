@@ -234,7 +234,7 @@ impl CellVisual {
         let mut img = RgbaImage::new(16, 16);
 
         for (i, &tile_id) in itertools::enumerate(&self.tile_ids) {
-            let img_tile = tiles[tile_id as usize].to_image(plt);
+            let img_tile = tiles[tile_id as usize].to_image(plt, false);
             let x = if i % 2 == 0 { 0 } else { 8 };
             let y = if i / 2 == 0 { 0 } else { 8 };
             imageops::overlay(&mut img, &img_tile, x, y);

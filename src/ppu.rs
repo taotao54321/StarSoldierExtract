@@ -58,7 +58,7 @@ impl Tile {
         Self::new(buf.as_ref()[..16].try_into().expect("incomplete pattern"))
     }
 
-    pub fn to_image(&self, plt: Palette) -> RgbaImage {
+    pub fn to_image(&self, plt: Palette, transparent: bool) -> RgbaImage {
         let mut img = RgbaImage::new(8, 8);
 
         for y in 0..8u32 {
@@ -68,6 +68,9 @@ impl Tile {
                 let lo = (byte_lo >> (7 - x)) & 1;
                 let hi = (byte_hi >> (7 - x)) & 1;
                 let idx = lo | (hi << 1);
+                if transparent && idx == 0 {
+                    continue;
+                }
                 img.put_pixel(x, y, nes_color(plt[idx as usize]));
             }
         }
@@ -104,7 +107,7 @@ impl SpriteAttribute {
 pub fn sprite_image(tile: &Tile, attr: SpriteAttribute, palette_set: &[Palette]) -> RgbaImage {
     let plt = palette_set[attr.palette_index() as usize];
 
-    let mut img = tile.to_image(plt);
+    let mut img = tile.to_image(plt, true);
 
     if attr.is_flipped_horizontal() {
         imageops::flip_horizontal_in_place(&mut img);
