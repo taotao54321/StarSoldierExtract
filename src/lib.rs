@@ -3,7 +3,7 @@ mod game;
 mod ppu;
 mod rom;
 
-pub use font::*;
-pub use game::*;
-pub use ppu::*;
-pub use rom::*;
+pub use crate::font::*;
+pub use crate::game::*;
+pub use crate::ppu::*;
+pub use crate::rom::*;
