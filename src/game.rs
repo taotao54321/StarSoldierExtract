@@ -63,7 +63,12 @@ impl Game {
 
     pub fn meta_sprite_image(&self, id: u8, second_round: bool) -> RgbaImage {
         let msv = &self.meta_sprite_visuals[id as usize];
-        let tiles = &self.tiles[(if second_round { 0x400 } else { 0 })..];
+        let offset = if (0x82..=0x8B).contains(&id) {
+            0x200
+        } else {
+            0
+        } + if second_round { 0x400 } else { 0 };
+        let tiles = &self.tiles[offset..];
         msv.to_image(tiles, &self.sprite_palette_set)
     }
 
