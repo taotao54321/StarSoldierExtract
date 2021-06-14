@@ -132,7 +132,7 @@ impl Music {
             decay
         )?;
 
-        Self::write_mml_track(wtr, track)?;
+        Self::write_mml_track(wtr, track, false)?;
 
         writeln!(wtr, ";")?;
 
@@ -143,28 +143,40 @@ impl Music {
         wtr: &mut W,
         track: &[MusicCommand],
     ) -> eyre::Result<()> {
-        writeln!(wtr, "V1 @6")?;
+        writeln!(wtr, "V15 @6-1")?;
 
-        Self::write_mml_track(wtr, track)?;
+        Self::write_mml_track(wtr, track, true)?;
 
         writeln!(wtr, ";")?;
 
         Ok(())
     }
 
-    fn write_mml_track<W: std::io::Write>(wtr: &mut W, track: &[MusicCommand]) -> eyre::Result<()> {
+    fn write_mml_track<W: std::io::Write>(
+        wtr: &mut W,
+        track: &[MusicCommand],
+        tri: bool,
+    ) -> eyre::Result<()> {
         let mut length_cur = None;
 
         for &cmd in track {
             match cmd {
                 MusicCommand::Tone { octave, note } => {
-                    write!(
-                        wtr,
-                        "O{}{}%{} ",
-                        octave,
-                        Self::note_to_str(note),
-                        Self::length_to_tick(length_cur.expect("length_cur not set"))
-                    )?;
+                    let note_str = Self::note_to_str(note);
+                    let tick = Self::length_to_tick(length_cur.expect("length_cur not set"));
+                    if tri {
+                        // 三角波の場合、3/4 発音、1/4 消音する。
+                        write!(
+                            wtr,
+                            "O{}{}%{} R%{} ",
+                            octave,
+                            note_str,
+                            tick * 3 / 4,
+                            tick / 4
+                        )?;
+                    } else {
+                        write!(wtr, "O{}{}%{} ", octave, note_str, tick,)?;
+                    }
                 }
                 MusicCommand::Rest => {
                     write!(
@@ -217,14 +229,14 @@ pub fn load_musics(rom: &Rom) -> Vec<Music> {
             let id = u8::try_from(i + 1).unwrap();
 
             // sq1 トラックは必ず 0xFE または 0xFF で終端されている。
-            let (track_sq1, length_sq1) = load_track(rom, ptrs[0], None);
+            let (track_sq1, length_sq1) = load_track(rom, ptrs[0], None, false);
 
             // ループ曲(sq1 が 0xFE 終端)の場合、sq2, tri トラックには 0xFE 終端がない。
             // よって、load_track() に length_expect 引数を与える必要がある。
             let music_loop = matches!(track_sq1.last().unwrap(), MusicCommand::Restart);
             let length_expect = if music_loop { Some(length_sq1) } else { None };
-            let (mut track_sq2, length_sq2) = load_track(rom, ptrs[1], length_expect);
-            let (mut track_tri, length_tri) = load_track(rom, ptrs[2], length_expect);
+            let (mut track_sq2, length_sq2) = load_track(rom, ptrs[1], length_expect, false);
+            let (mut track_tri, length_tri) = load_track(rom, ptrs[2], length_expect, true);
             if music_loop {
                 track_sq2.push(MusicCommand::Restart);
                 track_tri.push(MusicCommand::Restart);
@@ -279,7 +291,12 @@ fn load_music_ptrss(rom: &Rom) -> Vec<[u16; 3]> {
 ///
 /// length_expect 引数が必要な理由は、ループ曲(sq1 トラックが 0xFE で終わるもの)の場合、
 /// sq2, tri トラックには 0xFE 終端がないため。
-fn load_track(rom: &Rom, ptr: u16, length_expect: Option<u32>) -> (Vec<MusicCommand>, u32) {
+fn load_track(
+    rom: &Rom,
+    ptr: u16,
+    length_expect: Option<u32>,
+    tri: bool,
+) -> (Vec<MusicCommand>, u32) {
     let mut track = vec![];
 
     let prg = &rom.prg;
@@ -314,7 +331,8 @@ fn load_track(rom: &Rom, ptr: u16, length_expect: Option<u32>) -> (Vec<MusicComm
             // 音符
             25..=0x7F => {
                 let value = op - 1;
-                let octave = 1 + value / 12;
+                // 三角波は1オクターブ下げる
+                let octave = value / 12 + if tri { 0 } else { 1 };
                 let note = value % 12;
                 track.push(MusicCommand::new_tone(octave, note));
                 add_length_unit!();
