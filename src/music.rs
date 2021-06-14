@@ -83,7 +83,7 @@ impl MusicCommand {
 #[derive(Debug)]
 pub struct Music {
     pub id: u8,
-    pub sq_volume: u8,
+    pub sq_envelope: u8,
     pub sq_duty: SquareDuty,
     pub track_sq1: Vec<MusicCommand>,
     pub track_sq2: Vec<MusicCommand>,
@@ -92,13 +92,15 @@ pub struct Music {
 
 impl Music {
     pub fn write_mml<W: std::io::Write>(&self, mut wtr: W) -> eyre::Result<()> {
+        // FlMML reference: https://gist.github.com/anonymous/975e4cf634c2b156621e662b5fd12e4a
+
         // ゲーム内では音長をフレーム単位で扱っているが、MMLでは384分音符が1単位となる。
         // そこで、192分音符=1F とすると、4分音符=48F より、BPMは 3600/48=75 となる。
 
         writeln!(wtr, "T75")?;
 
-        Self::write_mml_sq_track(&mut wtr, self.sq_volume, self.sq_duty, &self.track_sq1)?;
-        Self::write_mml_sq_track(&mut wtr, self.sq_volume, self.sq_duty, &self.track_sq2)?;
+        Self::write_mml_sq_track(&mut wtr, self.sq_envelope, self.sq_duty, &self.track_sq1)?;
+        Self::write_mml_sq_track(&mut wtr, self.sq_envelope, self.sq_duty, &self.track_sq2)?;
         Self::write_mml_tri_track(&mut wtr, &self.track_tri)?;
 
         Ok(())
@@ -106,20 +108,28 @@ impl Music {
 
     fn write_mml_sq_track<W: std::io::Write>(
         wtr: &mut W,
-        volume: u8,
+        envelope: u8,
         duty: SquareDuty,
         track: &[MusicCommand],
     ) -> eyre::Result<()> {
+        // APU のエンベロープの周期は t=(envelope+1)/240 秒。
+        // エンベロープありの場合、初期音量は 15 なので、無音になるまで 15*t 秒かかる。
+        // これを x/127 秒に補正する。
+        let decay = {
+            let t = f64::from(envelope + 1) / 240.0;
+            (127.0 * 15.0 * t).round() as u32
+        };
+
         writeln!(
             wtr,
-            "V{} @5@W{}",
-            volume,
+            "@5@W{} V15 @E1,0,{},0,0 ",
             match duty {
                 SquareDuty::Eighth => 1,
                 SquareDuty::Quarter => 2,
                 SquareDuty::Half => 4,
                 SquareDuty::QuarterNeg => 6,
-            }
+            },
+            decay
         )?;
 
         Self::write_mml_track(wtr, track)?;
@@ -203,7 +213,7 @@ pub fn load_musics(rom: &Rom) -> Vec<Music> {
 
     itertools::zip(cfgs, ptrss)
         .enumerate()
-        .map(|(i, ((sq_volume, sq_duty), ptrs))| {
+        .map(|(i, ((sq_envelope, sq_duty), ptrs))| {
             let id = u8::try_from(i + 1).unwrap();
 
             // sq1 トラックは必ず 0xFE または 0xFF で終端されている。
@@ -225,7 +235,7 @@ pub fn load_musics(rom: &Rom) -> Vec<Music> {
 
             Music {
                 id,
-                sq_volume,
+                sq_envelope,
                 sq_duty,
                 track_sq1,
                 track_sq2,
@@ -235,16 +245,16 @@ pub fn load_musics(rom: &Rom) -> Vec<Music> {
         .collect()
 }
 
-/// (sq_volume, sq_duty) の配列を返す。
+/// (sq_envelope, sq_duty) の配列を返す。
 fn load_music_cfgs(rom: &Rom) -> Vec<(u8, SquareDuty)> {
     rom.prg[prg_offset(0xB716)..]
         .iter()
         .take(MUSIC_COUNT)
         .map(|&b| {
             assert_eq!(b & 0x30, 0);
-            let sq_volume = b & 0x0F;
+            let sq_envelope = b & 0x0F;
             let sq_duty = SquareDuty::new(b >> 6);
-            (sq_volume, sq_duty)
+            (sq_envelope, sq_duty)
         })
         .collect()
 }
